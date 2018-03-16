@@ -1,0 +1,16 @@
+{
+        "samples": {
+                "mel_gdna": ["SRR520351"],
+                "sim_gdna": ["SRR520334"],
+                "sec_gdna": ["SRR869587"],
+                "oemale_r1": ["150812_BRISCOE_0250_AC7K8CACXX_L2_OEmale"],
+                "oefemale_r1": ["150812_BRISCOE_0250_AC7K8CACXX_L2_OEfemale"],
+                "fbfemale_r1": ["150812_BRISCOE_0250_AC7K8CACXX_L2_FBfemale"],
+                "fbmale_r1": ["150812_BRISCOE_0250_AC7K8CACXX_L2_FBmale"],
+                "oemale_r2": ["150814_BRISCOE_0251_BC7LJDACXX_L1_ACTTGATG_pf"],
+                "oefemale_r2": ["150814_BRISCOE_0251_BC7LJDACXX_L1_TGACAGAC_pf"],
+                "fbfemale_r2": ["150814_BRISCOE_0251_BC7LJDACXX_L1_CGATGTTT_pf"],
+                "fbmale_r2": ["150814_BRISCOE_0251_BC7LJDACXX_L1_TAGAACAC_pf"],
+        }
+}
+

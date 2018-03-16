@@ -1,0 +1,12 @@
+# Directories
+prereqs
+analysis
+Reference
+sequence
+
+# Swap files
+*.swp
+.snakemake
+
+# Cluster logs
+slurm*.out
