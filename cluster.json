@@ -35,16 +35,42 @@
                 "memory": "60G",
 
         },
+        "orig_seq_star_ref": 
+        {
+                "time": "4:00:00",
+                "cpus": 12,
+                "memory": "60G",
+        },
         "diploid_star_ref": 
         {
                 "time": "4:00:00",
                 "cpus": 12,
                 "memory": "60G",
         },
-        "star_map" :
+        "star_map_orig" :
+        {
+                "time" : "04:00:00",
+                "cpus": 16,
+                "memory": "60G"
+        },
+        "star_map_emase" :
         {
                 "time" : "01:00:00",
                 "cpus": 16,
                 "memory": "60G"
-        }
+        },
+        "wasp_remap": 
+        {
+                "time": "4:00:00",
+                "cpus": 16,
+                "memory": "60G",
+        },
+        "wasp_keep":
+        {
+                "time": "2:00:00", "memory": "20G",
+        },
+        "wasp_find_snps":
+        {
+                "time": "5:00:00",
+        },
 }

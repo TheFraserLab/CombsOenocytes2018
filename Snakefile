@@ -170,7 +170,46 @@ rule build_transcriptome:
             --no-bowtie-index
     """
 
-ruleorder: build_transcriptome > vcf_to_genome
+ruleorder: build_transcriptome > prepare_emase > vcf_to_genome
+
+rule orig_seq_star_ref:
+    input:
+        fasta="Reference/{target}/simsec_corrected.fasta",
+        gtf="Reference/{target}_good.gtf",
+    output:
+        outdir="Reference/{target}/orig",
+        outfile="Reference/{target}/orig/Genome"
+    priority: 50
+    shell:""" {module}; module load STAR
+    rm -rf {output.outdir}
+    mkdir -p {output.outdir}
+	STAR --runMode genomeGenerate --genomeDir {output.outdir} \
+        --runThreadN 12 \
+        --limitGenomeGenerateRAM 48705389440 \
+		--outTmpDir {output.outdir}/_tmp/ \
+        --sjdbGTFfile {input.gtf} \
+		--genomeFastaFiles {input.fasta} 
+    """
+
+# I don't actually need to mask for the WASP pipeline, but it's safer to use
+# the program that I know already works to generate the bed file.
+rule mask_and_make_bed:
+    input:
+            var_tab='Reference/{target}/simsec_variants.tsv',
+            ref_fasta="prereqs/d{target}.fasta",
+    output:
+            fasta="Reference/{target}/simsec_masked.fasta",
+            corr_fasta="Reference/{target}/simsec_corrected.fasta",
+            bed="Reference/{target}/simsec_variant.bed",
+    shell: """
+    python MaskReferenceFromGATKTable.py \
+            --target-species sim \
+            --emit-bed {output.bed} \
+            --emit-corrected {output.corr_fasta} \
+            --outfasta {output.fasta} \
+                {input.ref_fasta} \
+                {input.var_tab}
+                """
 
 rule diploid_star_ref:
     input:
@@ -191,7 +230,119 @@ rule diploid_star_ref:
     """
 
 
-rule star_map:
+rule star_map_orig:
+    input:
+        unpack(getreads(1)),
+        unpack(getreads(2)),
+        genome="Reference/{target}/orig/Genome",
+        genomedir="Reference/{target}/orig/",
+    params:
+        r1s=getreadscomma(1),
+        r2s=getreadscomma(2),
+    output: "analysis/{target}/{sample}/orig_mapped.bam"
+    threads: 16
+    shell: """{module}; module load STAR
+    STAR \
+    --runThreadN 16 \
+    --runMode alignReads \
+    --readFilesCommand zcat \
+    --genomeDir {input.genomedir} \
+    --outFileNamePrefix analysis/{wildcards.target}/{wildcards.sample}/orig_ \
+    --outSAMattributes All \
+    --outSAMstrandField intronMotif \
+    --outSAMtype BAM SortedByCoordinate \
+    --readFilesIn {params.r1s} {params.r2s}
+    if [ -s  analysis/{wildcards.target}/{wildcards.sample}/orig_Aligned.sortedByCoord.out.bam ]; then
+          mv analysis/{wildcards.target}/{wildcards.sample}/orig_Aligned.sortedByCoord.out.bam {output};
+    fi
+    """
+
+rule make_snpdir:
+    input: 
+        vcf="Reference/{target}/simsec_variants_on_{target}.gvcf.gz"
+    output:
+        dir="Reference/{target}/snpdir",
+        file="Reference/{target}/snpdir/all.txt.gz",
+    shell:"""
+    mkdir -p {output.dir}
+    gzip -dc {input.vcf}             \
+            | grep -v "^#"             \
+            | awk 'BEGIN {{OFS="\t"}}; length($4) == 1 && length($5) == 1 {{print $1,$2,$4,$5}};' \
+            | gzip -c  \
+            > {output.file}
+"""
+        
+
+rule wasp_find_snps:
+    input: 
+        bam="analysis/{genome}/{sample}/{prefix}.dedup.bam",
+        bai="analysis/{genome}/{sample}/{prefix}.dedup.bam.bai",
+        snpdir="Reference/{genome}/snpdir",
+        snpfile="Reference/{genome}/snpdir/all.txt.gz"
+    output: 
+        "analysis/{genome}/{sample}/{prefix}.remap.fq1.gz",
+        "analysis/{genome}/{sample}/{prefix}.remap.fq2.gz",
+        "analysis/{genome}/{sample}/{prefix}.keep.bam",
+        "analysis/{genome}/{sample}/{prefix}.to.remap.bam",
+
+    shell: 
+        """python ~/FWASP/mapping/find_intersecting_snps.py \
+            --progressbar \
+            --phased --paired_end \
+            {input.bam} {input.snpdir}
+        """
+
+
+rule wasp_remap:
+    input:
+        R1="analysis/{genome}/{sample}/{prefix}.remap.fq1.gz",
+        R2="analysis/{genome}/{sample}/{prefix}.remap.fq2.gz",
+        genome="Reference/{genome}/orig/Genome",
+        genomedir="Reference/{genome}/orig/"
+    output:
+        "analysis/{genome}/{sample}/{prefix}.remap.bam",
+    threads: 16
+    shell: """{module}; module load STAR;
+    rm -rf analysis/{wildcards.genome}/{wildcards.sample}/STARtmp 
+    STAR \
+            --genomeDir {input.genomedir} \
+            --outFileNamePrefix analysis/{wildcards.genome}/{wildcards.sample}/remap \
+            --outSAMattributes MD NH --clip5pNbases 6 \
+            --outSAMtype BAM Unsorted \
+            --outTmpDir analysis/{wildcards.genome}/{wildcards.sample}/STARtmp \
+            --limitBAMsortRAM 20000000000 \
+            --runThreadN {threads} \
+            --readFilesCommand zcat \
+            --readFilesIn {input.R1} {input.R2}
+    mv analysis/{wildcards.genome}/{wildcards.sample}/remapAligned.out.bam {output}
+            """
+
+rule wasp_keep:
+    input: 
+        toremap="analysis/{file}.to.remap.bam",
+        remapped="analysis/{file}.remap.bam",
+    output:
+        "analysis/{file}.remap.kept.bam"
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python ~/FWASP/mapping/filter_remapped_reads.py \
+            -p \
+            {input.toremap} {input.remapped} \
+            {output} """
+
+rule wasp_merge:
+    input:
+        "analysis/{file}.remap.kept.bam",
+        "analysis/{file}.keep.bam",
+    output:
+        "analysis/{file}.keep.merged.bam"
+    shell:
+        "{module}; module load samtools; samtools merge {output} {input}"
+
+
+rule star_map_emase:
     input:
         unpack(getreads(1)),
         unpack(getreads(2)),
@@ -224,21 +375,62 @@ rule makedir:
     output: "{prefix}.log", "{prefix}/"
     shell: "touch {wildcards.prefix}.log; mkdir -p {wildcards.prefix}"
 
-rule kallisto_quant:
+rule kallisto_index_unsplit:
+    input:
+        fasta="Reference/{target}/emase.transcripts.fa"
+    output:
+        'Reference/{target}/kallisto_unsplit'
+    shell:"""~/Downloads/kallisto/kallisto index\
+        --index {output} \
+        {input.fasta}
+        """
+
+rule kallisto_index:
+    input:
+        fasta="Reference/{target}/emase.pooled.transcripts.fa"
+    output:
+        'Reference/{target}/kallisto'
+    shell:"""~/Downloads/kallisto/kallisto index\
+        --index {output} \
+        {input.fasta}
+
+        """
+        
+
+rule kallisto_quant_unsplit:
     input:
         unpack(getreads(1)),
         unpack(getreads(2)),
-        index='Reference/dmel_5.57_kallisto',
-        dir=ancient('{sample}/')
+        index='Reference/{target}/kallisto',
+        dir=ancient('analysis/{target}/{sample}/unsplit')
     priority: 50
     params:
         reads=interleave_reads
-    output: "{sample}/abundance.h5", "{sample}/abundance.tsv"
+    output: "analysis/{target}/{sample}/unsplit/abundance.h5", "analysis/{target}/{sample}/unsplit/abundance.tsv"
     shell:"""
     mkdir -p {wildcards.sample}
     ~/Downloads/kallisto/kallisto quant \
         -i {input.index} \
-        -o {wildcards.sample} \
+        -o analysis/{wildcards.target}/{wildcards.sample}/unsplit \
+        {params.reads}
+    """
+
+
+rule kallisto_quant:
+    input:
+        unpack(getreads(1)),
+        unpack(getreads(2)),
+        index='Reference/{target}/kallisto',
+        dir=ancient('analysis/{target}/{sample}/')
+    priority: 50
+    params:
+        reads=interleave_reads
+    output: "analysis/{target}/{sample}/abundance.h5", "analysis/{target}/{sample}/abundance.tsv"
+    shell:"""
+    mkdir -p {wildcards.sample}
+    ~/Downloads/kallisto/kallisto quant \
+        -i {input.index} \
+        -o analysis/{wildcards.target}/{wildcards.sample}/ \
         {params.reads}
     """
 
@@ -316,6 +508,11 @@ rule map_gdna:
 		| samtools view -b \
 		| samtools sort -o {output} -T {params.outdir}/{wildcards.sample}_bowtie2_sorting
         """
+
+rule sort_bam:
+    input: "{sample}.bam"
+    output: "{sample}.sort.bam"
+    shell: "{module}; module load samtools; samtools sort -o {output} {input}"
 
 rule index_bam:
     input: "{sample}.bam"
@@ -451,4 +648,25 @@ rule bad_gtf:
 		| grep -vP '(snoRNA|CR[0-9]{{4}}|Rp[ILS]|mir-|tRNA|unsRNA|snRNA|snmRNA|scaRNA|rRNA|RNA:|mt:|His.*:)' \
 		> {output}
         """
+
+rule sample_gene_ase:
+    input:
+        bam="analysis/{target}/{sample}/orig_mapped.keep.merged.sort.bam",
+        bai="analysis/{target}/{sample}/orig_mapped.keep.merged.sort.bam.bai",
+        variants="Reference/{target}/simsec_variants.tsv",
+        gtf="Reference/{target}_good.gtf",
+        sentinel=path.join("analysis", 'recalc_ase')
+    threads: 1
+    output:
+        "analysis/{target}/{sample}/gene_ase_by_read.tsv"
+    shell: """ export PYTHONPATH=$PYTHONPATH:/home/pcombs/ASEr/;
+    python ~/ASEr/bin/GetGeneASEbyReads.py \
+        --outfile {output} \
+        --id-name gene_name \
+        --ase-function pref_index \
+        --min-reads-per-allele 0 \
+        {input.variants} \
+        {input.gtf} \
+        {input.bam}
+    """
 
