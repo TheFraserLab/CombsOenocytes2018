@@ -297,11 +297,11 @@ rule wasp_find_snps:
         bai="analysis/{genome}/{sample}/{prefix}.dedup.bam.bai",
         snpdir="Reference/{genome}/snpdir",
         snpfile="Reference/{genome}/snpdir/all.txt.gz"
-    output: 
-        "analysis/{genome}/{sample}/{prefix}.remap.fq1.gz",
-        "analysis/{genome}/{sample}/{prefix}.remap.fq2.gz",
-        "analysis/{genome}/{sample}/{prefix}.keep.bam",
-        "analysis/{genome}/{sample}/{prefix}.to.remap.bam",
+    output:
+        "analysis/{genome}/{sample}/{prefix}.dedup.remap.fq1.gz",
+        "analysis/{genome}/{sample}/{prefix}.dedup.remap.fq2.gz",
+        "analysis/{genome}/{sample}/{prefix}.dedup.keep.bam",
+        "analysis/{genome}/{sample}/{prefix}.dedup.to.remap.bam",
 
     shell:
         """python ~/FWASP/mapping/find_intersecting_snps.py \
@@ -336,7 +336,7 @@ rule wasp_remap:
             """
 
 rule wasp_keep:
-    input: 
+    input:
         toremap="analysis/{file}.to.remap.bam",
         remapped="analysis/{file}.remap.bam",
     output:
