@@ -85,4 +85,9 @@
             "memory": "48G",
             "cpus": 16,
         },
+        "nowasp_gene_ase":
+        {
+            "time": "4:00:00",
+            "memory": "10G",
+        },
 }

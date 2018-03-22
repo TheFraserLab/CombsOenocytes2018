@@ -684,6 +684,27 @@ rule bad_gtf:
 		> {output}
         """
 
+rule sample_gene_ase_pval:
+    input:
+        bam="analysis/{target}/{sample}/orig_mapped.dedup.keep.merged.sort.bam",
+        bai="analysis/{target}/{sample}/orig_mapped.dedup.keep.merged.sort.bam.bai",
+        variants="Reference/{target}/simsec_variant.bed",
+        gtf="Reference/{target}_good.gtf",
+        sentinel=path.join("analysis", 'recalc_ase')
+    threads: 1
+    output:
+        "analysis/{target}/{sample}/gene_ase_pval.tsv"
+    shell: """ export PYTHONPATH=$HOME/ASEr/
+    python ~/ASEr/bin/GetGeneASEbyReads.py \
+        --outfile {output} \
+        --id-name gene_name \
+        --ase-function log10pval \
+        --min-reads-per-allele 0 \
+        {input.variants} \
+        {input.gtf} \
+        {input.bam}
+    """
+
 rule sample_gene_ase:
     input:
         bam="analysis/{target}/{sample}/orig_mapped.dedup.keep.merged.sort.bam",
@@ -694,9 +715,32 @@ rule sample_gene_ase:
     threads: 1
     output:
         "analysis/{target}/{sample}/gene_ase_by_read.tsv"
-    shell: """ export PYTHONPATH=$PYTHONPATH:/home/pcombs/ASEr/;
+    shell: """ export PYTHONPATH=$HOME/ASEr/
     python ~/ASEr/bin/GetGeneASEbyReads.py \
         --outfile {output} \
+        --assign-all-reads \
+        --id-name gene_name \
+        --ase-function pref_index \
+        --min-reads-per-allele 0 \
+        {input.variants} \
+        {input.gtf} \
+        {input.bam}
+    """
+
+rule nowasp_gene_ase:
+    input:
+        bam="analysis/{target}/{sample}/orig_mapped.dedup.sort.bam",
+        bai="analysis/{target}/{sample}/orig_mapped.dedup.sort.bam.bai",
+        variants="Reference/{target}/simsec_variant.bed",
+        gtf="Reference/{target}_good.gtf",
+        sentinel=path.join("analysis", 'recalc_ase')
+    threads: 1
+    output:
+        "analysis/{target}/{sample}/gene_ase_nowasp.tsv"
+    shell: """ export PYTHONPATH=$HOME/ASEr/
+    python ~/ASEr/bin/GetGeneASEbyReads.py \
+        --outfile {output} \
+        --assign-all-reads \
         --id-name gene_name \
         --ase-function pref_index \
         --min-reads-per-allele 0 \
