@@ -860,5 +860,25 @@ rule kallisto_summary_renamed:
         {input.info} {input.expr}
         """
 
+rule draw_specificity:
+    input:
+        code="DrawSpecificity.py",
+        outdir=ancient('analysis/{target}/figure-specificity/'),
+        expr='analysis/{target}/summary_kallisto_genes.tsv',
+        ase='analysis/{target}/summary_ase.tsv',
+        pvals='analysis/{target}/summary_ase_tissue_pvals.tsv',
+    output:
+        expand('analysis/{{target}}/figure-specificity/{tissue}{sex}.svg',
+        tissue=['oe', 'fb'], sex=['male', 'female'],)
+    shell:  """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python DrawSpecificity.py \
+            --pvals {input.pvals} \
+            --try-orthologs prereqs \
+            {input.expr} {input.ase} {input.outdir}
+        """
+
 
 

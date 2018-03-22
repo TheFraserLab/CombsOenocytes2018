@@ -73,6 +73,11 @@
         {
                 "time": "5:00:00",
         },
+        "draw_specificity":
+        {
+            "time": "10:00",
+            "memory": "5G",
+        },
         "bowtie_build":
         {
             "time": "3:00:00",
