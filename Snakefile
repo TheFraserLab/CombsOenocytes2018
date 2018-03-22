@@ -170,7 +170,7 @@ rule build_transcriptome:
             --no-bowtie-index
     """
 
-ruleorder: build_transcriptome > prepare_emase > vcf_to_genome
+ruleorder: tophat_transcriptome > build_transcriptome > prepare_emase > vcf_to_genome
 
 rule orig_seq_star_ref:
     input:
@@ -202,6 +202,9 @@ rule mask_and_make_bed:
             corr_fasta="Reference/{target}/simsec_corrected.fasta",
             bed="Reference/{target}/simsec_variant.bed",
     shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
     python MaskReferenceFromGATKTable.py \
             --target-species sim \
             --emit-bed {output.bed} \
@@ -392,13 +395,42 @@ rule makedir:
 
 rule kallisto_index_unsplit:
     input:
-        fasta="Reference/{target}/emase.transcripts.fa"
+        fasta="Reference/{target}/simsec_corrected_transcripts.fa"
     output:
         'Reference/{target}/kallisto_unsplit'
     shell:"""~/Downloads/kallisto/kallisto index\
         --index {output} \
         {input.fasta}
         """
+
+rule bowtie_build:
+    input:
+        fasta="Reference/{target}/simsec_corrected.fasta"
+    output:
+        expand("Reference/{{target}}/simsec_corrected.{n}.bt2", n=[1,2,3,4])
+    shell:"""
+    {module}
+    module load bowtie2
+    bowtie2-build --threads 16 {input.fasta} Reference/{wildcards.target}/simsec_corrected
+    """
+
+rule tophat_transcriptome:
+    input:
+        "Reference/{target}/simsec_corrected.1.bt2",
+        gtf="Reference/{target}_good.gtf"
+    output:
+        "Reference/{target}/simsec_corrected_transcripts.fa",
+        "Reference/{target}/simsec_corrected_transcripts.fa.tlst",
+        "Reference/{target}/simsec_corrected_transcripts.gff"
+    shell:""" {module}
+    module load tophat bowtie2
+    tophat2 \
+            --GTF {input.gtf} \
+            --num-threads 16 \
+            --transcriptome-index Reference/{wildcards.target}/simsec_corrected_transcripts \
+            Reference/{wildcards.target}/simsec_corrected
+    """
+
 
 rule kallisto_index:
     input:
@@ -416,7 +448,7 @@ rule kallisto_quant_unsplit:
     input:
         unpack(getreads(1)),
         unpack(getreads(2)),
-        index='Reference/{target}/kallisto',
+        index='Reference/{target}/kallisto_unsplit',
         dir=ancient('analysis/{target}/{sample}/unsplit/')
     priority: 50
     params:
