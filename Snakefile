@@ -403,7 +403,7 @@ rule kallisto_index_unsplit:
         {input.fasta}
         """
 
-rule bowtie_build:
+rule bowtie_build_corrected:
     input:
         fasta="Reference/{target}/simsec_corrected.fasta"
     output:
@@ -421,7 +421,7 @@ rule tophat_transcriptome:
     output:
         "Reference/{target}/simsec_corrected_transcripts.fa",
         "Reference/{target}/simsec_corrected_transcripts.fa.tlst",
-        "Reference/{target}/simsec_corrected_transcripts.gff"
+        "Reference/{target}/simsec_corrected_transcripts.gff",
     shell:""" {module}
     module load tophat bowtie2
     tophat2 \
@@ -568,11 +568,13 @@ rule index_bam:
     shell: "{module}; module load samtools; samtools index {input}"
 
 
-#rule bowtie2_build:
-#    input: "{base}.fasta"
-#    output: "{base}.1.bt2"
-#    log:    "{base}.bt2.log"
-#    shell: "{module}; module load bowtie2; bowtie2-build --offrate 3 {input} {wildcards.base}"
+rule bowtie2_build:
+    input: "{base}.fasta"
+    output: "{base}.1.bt2"
+    log:    "{base}.bt2.log"
+    shell: "{module}; module load bowtie2; bowtie2-build --offrate 3 {input} {wildcards.base}"
+
+ruleorder: bowtie_build_corrected > bowtie2_build
 
 
 rule call_variants:
@@ -580,8 +582,8 @@ rule call_variants:
         ref_fasta="prereqs/d{reference}.fasta",
         ref_fai="prereqs/d{reference}.fasta.fai",
         ref_dict="prereqs/d{reference}.dict",
-        bam="Reference/{reference}/{species}_gdna_bowtie2_dedup.bam",
-        bai="Reference/{reference}/{species}_gdna_bowtie2_dedup.bam.bai",
+        bam="Reference/{reference}/{species}_gdna_bowtie2.dedup.bam",
+        bai="Reference/{reference}/{species}_gdna_bowtie2.dedup.bam.bai",
     output:
         "Reference/{reference}/{species}_gdna_raw_variants_uncalibrated.p.g.vcf"
     threads: 4
@@ -684,9 +686,9 @@ rule bad_gtf:
 
 rule sample_gene_ase:
     input:
-        bam="analysis/{target}/{sample}/orig_mapped.keep.merged.sort.bam",
-        bai="analysis/{target}/{sample}/orig_mapped.keep.merged.sort.bam.bai",
-        variants="Reference/{target}/simsec_variants.tsv",
+        bam="analysis/{target}/{sample}/orig_mapped.dedup.keep.merged.sort.bam",
+        bai="analysis/{target}/{sample}/orig_mapped.dedup.keep.merged.sort.bam.bai",
+        variants="Reference/{target}/simsec_variant.bed",
         gtf="Reference/{target}_good.gtf",
         sentinel=path.join("analysis", 'recalc_ase')
     threads: 1
