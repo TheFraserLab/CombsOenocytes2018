@@ -25,7 +25,7 @@ def getreads(readnum):
     else:
         formatstr = 'sequence/{{}}_{}.fastq.gz'.format(readnum)
     def retfun(wildcards):
-        return [formatstr.format(srr)
+        return [ancient(formatstr.format(srr))
                 for srr in config['samples'][path.basename(wildcards.sample)]]
     return retfun
 
