@@ -3,10 +3,14 @@ prereqs
 analysis
 Reference
 sequence
+GCMS_data
+tmp
 
 # Swap files
 *.swp
 .snakemake
 
 # Cluster logs
+Log.out
+tophat_out
 slurm*.out
