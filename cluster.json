@@ -1,47 +1,47 @@
 {
-        "__default__" :
-        {
-                "time" : "02:00:00",
-                "cpus": 1,
-                "memory": "15G",
-                jobname: "{rule}.{wildcards}",
-                "partition": "hbfraser,hns,owners",
-        },
-        "get_sra":
-        {
-                "time": "18:00:00",
-        },
-        "ref_genome":
-        {
-            "time": "10:00",
-        },
-        "ref_gff":
-        {
-            "time": "10:00",
-        },
-        "call_variants":{
-                "cpus": 16,
-                "time": "6:00:00",
-        },
-        "dedup" :
-        {
-                "time": "12:00:00",
-                "memory": "64G",
-        },
-        "map_gdna":
-        {
-                "time": "1-00:00:00",
-                "cpus": 12,
-                "memory": "60G",
+    "__default__" :
+    {
+        "time" : "02:00:00",
+        "cpus": 1,
+        "memory": "15G",
+        jobname: "{rule}.{wildcards}",
+        "partition": "hbfraser,hns,owners",
+    },
+    "get_sra":
+    {
+        "time": "18:00:00",
+    },
+    "ref_genome":
+    {
+        "time": "10:00",
+    },
+    "ref_gff":
+    {
+        "time": "10:00",
+    },
+    "call_variants":{
+        "cpus": 16,
+        "time": "6:00:00",
+    },
+    "dedup" :
+    {
+        "time": "12:00:00",
+        "memory": "64G",
+    },
+    "map_gdna":
+    {
+        "time": "1-00:00:00",
+        "cpus": 12,
+        "memory": "60G",
 
         },
-        "orig_seq_star_ref": 
+        "orig_seq_star_ref":
         {
                 "time": "4:00:00",
                 "cpus": 12,
                 "memory": "60G",
         },
-        "diploid_star_ref": 
+        "diploid_star_ref":
         {
                 "time": "4:00:00",
                 "cpus": 12,
@@ -59,7 +59,7 @@
                 "cpus": 16,
                 "memory": "60G"
         },
-        "wasp_remap": 
+        "wasp_remap":
         {
                 "time": "4:00:00",
                 "cpus": 16,

@@ -63,10 +63,10 @@ def interleave_reads(wildcards):
 
 rule all:
     input:
-       
+
 
 rule prepare_emase:
-    input: 
+    input:
         ancient("Reference/{species}/"),
         fasta="prereqs/d{species}.fasta",
         gtf="Reference/{species}_good_exonids.gtf"
@@ -80,9 +80,9 @@ rule prepare_emase:
 
 
     """
-        
+
 rule bam_to_emase:
-    input: 
+    input:
         bam="analysis/{genome}/{sample}/mapped.bam",
         transcriptome_info="Reference/{genome}/emase.transcripts.info",
     output:
@@ -119,7 +119,7 @@ rule run_emase:
 
 
 rule block_gzip:
-    input: 
+    input:
         vcf="{file}.gvcf"
     output:
         gz="{file}.gvcf.gz",
@@ -136,7 +136,7 @@ rule add_exonids:
     shell: "python AddExonIDs.py {input.gtf} {output}"
 
 rule vcf_to_genome:
-    input: 
+    input:
         vcf_indels="Reference/{genome}/simsec_variants_on_{genome}_indels.gvcf.gz",
         vcf_snps="Reference/{genome}/simsec_variants_on_{genome}_snps.gvcf.gz",
         reffasta="Reference/d{genome}.fa",
@@ -155,7 +155,7 @@ rule vcf_to_genome:
     g2gtools convert -c {output.chain} -i {input.gtf} -f gtf -o {output.gtf}
     g2gtools gtf2db -i {output.gtf} -o {output.gtfdb}
     """
-        
+
 rule build_transcriptome:
     input:
         sim="Reference/{target}/sim.fa",
@@ -188,7 +188,7 @@ rule orig_seq_star_ref:
         --limitGenomeGenerateRAM 48705389440 \
 		--outTmpDir {output.outdir}/_tmp/ \
         --sjdbGTFfile {input.gtf} \
-		--genomeFastaFiles {input.fasta} 
+		--genomeFastaFiles {input.fasta}
     """
 
 # I don't actually need to mask for the WASP pipeline, but it's safer to use
@@ -226,7 +226,7 @@ rule diploid_star_ref:
         --runThreadN 12 \
         --limitGenomeGenerateRAM 48705389440 \
 		--outTmpDir {output.outdir}/_tmp/ \
-		--genomeFastaFiles {input.fasta} 
+		--genomeFastaFiles {input.fasta}
     """
 
 
@@ -258,7 +258,7 @@ rule star_map_orig:
     """
 
 rule make_snpdir:
-    input: 
+    input:
         vcf="Reference/{target}/simsec_variants_on_{target}.gvcf.gz"
     output:
         dir="Reference/{target}/snpdir",
@@ -274,7 +274,7 @@ rule make_snpdir:
         
 
 rule wasp_find_snps:
-    input: 
+    input:
         bam="analysis/{genome}/{sample}/{prefix}.dedup.bam",
         bai="analysis/{genome}/{sample}/{prefix}.dedup.bam.bai",
         snpdir="Reference/{genome}/snpdir",
@@ -285,7 +285,7 @@ rule wasp_find_snps:
         "analysis/{genome}/{sample}/{prefix}.keep.bam",
         "analysis/{genome}/{sample}/{prefix}.to.remap.bam",
 
-    shell: 
+    shell:
         """python ~/FWASP/mapping/find_intersecting_snps.py \
             --progressbar \
             --phased --paired_end \
@@ -303,7 +303,7 @@ rule wasp_remap:
         "analysis/{genome}/{sample}/{prefix}.remap.bam",
     threads: 16
     shell: """{module}; module load STAR;
-    rm -rf analysis/{wildcards.genome}/{wildcards.sample}/STARtmp 
+    rm -rf analysis/{wildcards.genome}/{wildcards.sample}/STARtmp
     STAR \
             --genomeDir {input.genomedir} \
             --outFileNamePrefix analysis/{wildcards.genome}/{wildcards.sample}/remap \
@@ -395,14 +395,14 @@ rule kallisto_index:
         {input.fasta}
 
         """
-        
+
 
 rule kallisto_quant_unsplit:
     input:
         unpack(getreads(1)),
         unpack(getreads(2)),
         index='Reference/{target}/kallisto',
-        dir=ancient('analysis/{target}/{sample}/unsplit')
+        dir=ancient('analysis/{target}/{sample}/unsplit/')
     priority: 50
     params:
         reads=interleave_reads
@@ -441,7 +441,7 @@ rule get_combined_variants:
         sim_gvcf="Reference/{parent}/sim_gdna_raw_variants_uncalibrated.p.g.vcf",
         sec_gvcf="Reference/{parent}/sec_gdna_raw_variants_uncalibrated.p.g.vcf",
 
-    output: 
+    output:
         tsv="Reference/{parent}/simsec_variants.tsv",
         vcf="Reference/{parent}/simsec_variants_on_{parent}.gvcf"
     params:
@@ -475,7 +475,7 @@ rule split_variants:
     bcftools view --types indels -o {output.indels} {input}
 
     """
-        
+
 
 
 rule map_gdna:
