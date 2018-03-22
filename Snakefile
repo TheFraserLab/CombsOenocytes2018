@@ -749,3 +749,116 @@ rule nowasp_gene_ase:
         {input.bam}
     """
 
+rule ase_summary:
+    input:
+        lambda wc: expand('analysis/{target}/{sample}/gene_ase_by_read.tsv', target=[wc.target], sample=[c for c in config['samples'] if 'gdna' not in c])
+    output:
+        'analysis/{target}/summary_ase.tsv'
+    log:
+        'analysis/{target}/mst.log'
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python MakeSummaryTable.py \
+	   --filename gene_ase_by_read.tsv \
+	   --key gene \
+       --out-basename summary_ase \
+	   --column ase_value \
+		analysis/{wildcards.target}/ \
+		| tee {log}
+        """
+
+rule nowasp_ase_summary:
+    input:
+        lambda wc: expand('analysis/{target}/{sample}/gene_ase_nowasp.tsv', target=[wc.target], sample=[c for c in config['samples'] if 'gdna' not in c])
+    output:
+        'analysis/{target}/summary_ase_nowasp.tsv'
+    log:
+        'analysis/{target}/mst.log'
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python MakeSummaryTable.py \
+	   --filename gene_ase_nowasp.tsv \
+	   --key gene \
+       --out-basename summary_ase_nowasp \
+	   --column ase_value \
+		analysis/{wildcards.target}/ \
+		| tee {log}
+        """
+
+rule pval_summary:
+    input:
+        lambda wc: expand('analysis/{target}/{sample}/gene_ase_pval.tsv', target=[wc.target], sample=[c for c in config['samples'] if 'gdna' not in c])
+    output:
+        'analysis/{target}/summary_ase_pvals.tsv'
+    log:
+        'analysis/{target}/mst.log'
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python MakeSummaryTable.py \
+	   --filename gene_ase_pval.tsv \
+	   --key gene \
+       --out-basename summary_ase_pvals \
+	   --column ase_value \
+		analysis/{wildcards.target}/ \
+		| tee {log}
+        """
+
+rule tissue_pvals:
+    input:
+        lambda wc: expand('analysis/{target}/{sample}/gene_ase_by_read.tsv', target=[wc.target], sample=[c for c in config['samples'] if 'gdna' not in c])
+    output:
+        'analysis/{target}/summary_ase_tissue_pvals.tsv'
+    shell:"""
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python CombinedASEbySample.py -o {output} {input}
+    """
+
+
+rule kallisto_summary:
+    input:
+        lambda wc: expand('analysis/{target}/{sample}/unsplit/abundance.tsv', target=[wc.target], sample=[c for c in config['samples'] if 'gdna' not in c])
+    output:
+        'analysis/{target}/summary_kallisto_in_unsplit.tsv'
+    log:
+        'analysis/{target}/mst.log'
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python MakeSummaryTable.py \
+	   --filename abundance.tsv \
+       --in-subdirectory unsplit \
+	   --key target_id \
+       --out-basename summary_kallisto \
+	   --column tpm \
+		analysis/{wildcards.target}/ \
+		| tee {log}
+        """
+
+rule kallisto_summary_renamed:
+    input:
+        expr = 'analysis/{target}/summary_kallisto_in_unsplit.tsv',
+        info = 'Reference/{target}/simsec_corrected_transcripts.gff',
+        tlst = 'Reference/{target}/simsec_corrected_transcripts.fa.tlst',
+    output: 'analysis/{target}/summary_kallisto_genes.tsv'
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python CombineExprByGenes.py \
+        --cufflinks-tlst {input.tlst} \
+        --use-gtf --use-gene-name \
+        --outfile {output} \
+        {input.info} {input.expr}
+        """
+
+
+
