@@ -271,7 +271,22 @@ rule make_snpdir:
             | gzip -c  \
             > {output.file}
 """
-        
+
+rule dedup:
+    input: "{sample}.bam"
+    output: "{sample}.dedup.bam"
+    log: "{sample}_dedup.log"
+    shell: """{module}; module load picard
+    picard MarkDuplicates \
+        SORTING_COLLECTION_SIZE_RATIO=.05 \
+		MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000 \
+        MAX_RECORDS_IN_RAM=2500000 \
+		READ_NAME_REGEX=null \
+		REMOVE_DUPLICATES=true \
+		DUPLICATE_SCORING_STRATEGY=RANDOM \
+		INPUT={input} OUTPUT={output} METRICS_FILE={log}
+        """
+
 
 rule wasp_find_snps:
     input:
@@ -520,26 +535,12 @@ rule index_bam:
     log: "{sample}.bam.bai_log"
     shell: "{module}; module load samtools; samtools index {input}"
 
-rule dedup:
-    input: "{sample}.bam"
-    output: ("{sample}_dedup.bam")
-    log: "{sample}_dedup.log"
-    shell: """{module}; module load picard
-    picard MarkDuplicates \
-        SORTING_COLLECTION_SIZE_RATIO=.05 \
-		MAX_FILE_HANDLES_FOR_READ_ENDS_MAP=1000 \
-        MAX_RECORDS_IN_RAM=2500000 \
-		READ_NAME_REGEX=null \
-		REMOVE_DUPLICATES=true \
-		DUPLICATE_SCORING_STRATEGY=RANDOM \
-		INPUT={input} OUTPUT={output} METRICS_FILE={log}
-        """
 
-rule bowtie2_build:
-    input: "{base}.fasta"
-    output: "{base}.1.bt2"
-    log:    "{base}.bt2.log"
-    shell: "{module}; module load bowtie2; bowtie2-build --offrate 3 {input} {wildcards.base}"
+#rule bowtie2_build:
+#    input: "{base}.fasta"
+#    output: "{base}.1.bt2"
+#    log:    "{base}.bt2.log"
+#    shell: "{module}; module load bowtie2; bowtie2-build --offrate 3 {input} {wildcards.base}"
 
 
 rule call_variants:
