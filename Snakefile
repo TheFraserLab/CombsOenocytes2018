@@ -63,6 +63,8 @@ def interleave_reads(wildcards):
 
 rule all:
     input:
+        expand('analysis/{target}/figure-specificity/oefemale.svg',
+                target=['mel', 'sim', 'sec'])
 
 
 rule prepare_emase:
@@ -751,7 +753,9 @@ rule nowasp_gene_ase:
 
 rule ase_summary:
     input:
-        lambda wc: expand('analysis/{target}/{sample}/gene_ase_by_read.tsv', target=[wc.target], sample=[c for c in config['samples'] if 'gdna' not in c])
+        lambda wc: expand('analysis/{target}/{sample}/gene_ase_by_read.tsv',
+                target=[wc.target],
+                sample=[c for c in config['samples'] if 'gdna' not in c])
     output:
         'analysis/{target}/summary_ase.tsv'
     log:
@@ -768,6 +772,31 @@ rule ase_summary:
 		analysis/{wildcards.target}/ \
 		| tee {log}
         """
+
+rule ase_refalt_summary:
+    input:
+        lambda wc: expand('analysis/{target}/{sample}/gene_ase_by_read.tsv',
+                target=[wc.target],
+                sample=[c for c in config['samples'] if 'gdna' not in c])
+    output:
+        'analysis/{target}/summary_ase_refalt.tsv'
+    log:
+        'analysis/{target}/mst_refalt.log'
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python MakeSummaryTable.py \
+	   --filename gene_ase_by_read.tsv \
+	   --key gene \
+       --refalt \
+       --out-basename summary_ase_refalt \
+       --float-format %5.0f \
+	   --column ref_counts \
+		analysis/{wildcards.target}/ \
+		| tee {log}
+        """
+
 
 rule nowasp_ase_summary:
     input:
@@ -866,7 +895,7 @@ rule draw_specificity:
         outdir=ancient('analysis/{target}/figure-specificity/'),
         expr='analysis/{target}/summary_kallisto_genes.tsv',
         ase='analysis/{target}/summary_ase.tsv',
-        pvals='analysis/{target}/summary_ase_tissue_pvals.tsv',
+        pvals='analysis/{target}/deseq_pvals.tsv',
     output:
         expand('analysis/{{target}}/figure-specificity/{tissue}{sex}.svg',
         tissue=['oe', 'fb'], sex=['male', 'female'],)
@@ -879,6 +908,41 @@ rule draw_specificity:
             --try-orthologs prereqs \
             {input.expr} {input.ase} {input.outdir}
         """
+
+
+
+rule deseq2:
+    input:
+        ancient('analysis/{target}/combined/'),
+        code='DESeq.R',
+        data="analysis/{target}/summary_ase_refalt.tsv",
+    output:
+        expand('analysis/{{target}}/combined/{file}_deseq.tsv',
+                file=['oefemale', 'oemale', 'fbfemale', 'fbmale'])
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate deseq
+    Rscript {input.code} {input.data}
+    """
+
+rule combine_deseq_pvals:
+    input:
+        expand('analysis/{{target}}/combined/{file}_deseq.tsv',
+                file=['oefemale', 'oemale', 'fbfemale', 'fbmale'])
+    output:
+        'analysis/{target}/deseq_pvals.tsv'
+    run:
+        import pandas as pd
+        from os import path
+        outdict = {}
+        for fname in input:
+            indf = pd.read_table(fname, index_col=0)
+            colname = fname.split('/')[-1].split('_')[0]
+            outdict[colname] = pd.np.log10(indf.padj) * pd.np.sign(indf.log2FoldChange)
+        outdf = pd.DataFrame(outdict)
+        outdf.to_csv(output[0], sep='\t', na_rep='0')
+
 
 
 

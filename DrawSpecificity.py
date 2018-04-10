@@ -92,7 +92,8 @@ if __name__ == "__main__":
 
             mpl.figure(figsize=(4,3))
             if args.pvals is not None:
-                color = pd.Series({ix: (fishers_method(args.pvals.loc[ix].select(sw(tissue+sex)))
+                color = pd.Series({ix:
+                    (args.pvals.loc[ix].select(sw(tissue+sex)).mean()
                     if ix in args.pvals.index
                     else 0)
                     for ix in tissue_ase.index
