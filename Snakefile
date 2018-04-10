@@ -300,10 +300,10 @@ rule wasp_find_snps:
         snpdir="Reference/{genome}/snpdir",
         snpfile="Reference/{genome}/snpdir/all.txt.gz"
     output:
-        "analysis/{genome}/{sample}/{prefix}.dedup.remap.fq1.gz",
-        "analysis/{genome}/{sample}/{prefix}.dedup.remap.fq2.gz",
-        "analysis/{genome}/{sample}/{prefix}.dedup.keep.bam",
-        "analysis/{genome}/{sample}/{prefix}.dedup.to.remap.bam",
+        temp("analysis/{genome}/{sample}/{prefix}.dedup.remap.fq1.gz"),
+        temp("analysis/{genome}/{sample}/{prefix}.dedup.remap.fq2.gz"),
+        temp("analysis/{genome}/{sample}/{prefix}.dedup.keep.bam"),
+        temp("analysis/{genome}/{sample}/{prefix}.dedup.to.remap.bam"),
 
     shell:
         """python ~/FWASP/mapping/find_intersecting_snps.py \
@@ -320,7 +320,7 @@ rule wasp_remap:
         genome="Reference/{genome}/orig/Genome",
         genomedir="Reference/{genome}/orig/"
     output:
-        "analysis/{genome}/{sample}/{prefix}.remap.bam",
+        temp("analysis/{genome}/{sample}/{prefix}.remap.bam")
     threads: 16
     shell: """{module}; module load STAR;
     rm -rf analysis/{wildcards.genome}/{wildcards.sample}/STARtmp
@@ -342,7 +342,7 @@ rule wasp_keep:
         toremap="analysis/{file}.to.remap.bam",
         remapped="analysis/{file}.remap.bam",
     output:
-        "analysis/{file}.remap.kept.bam"
+        temp("analysis/{file}.remap.kept.bam"),
     shell: """
     export CONDA_PATH_BACKUP=""
     export PS1=""
@@ -357,7 +357,7 @@ rule wasp_merge:
         "analysis/{file}.remap.kept.bam",
         "analysis/{file}.keep.bam",
     output:
-        "analysis/{file}.keep.merged.bam"
+        temp("analysis/{file}.keep.merged.bam")
     shell:
         "{module}; module load samtools; samtools merge {output} {input}"
 
@@ -910,6 +910,176 @@ rule draw_specificity:
         """
 
 
+rule alignment:
+    input:
+        A="analysis/targets/{gene}/{A}.fasta",
+        B="analysis/targets/{gene}/{B}.fasta",
+    wildcard_constraints:
+        A="[a-z][a-z][a-z]+",
+        B="[a-z][a-z][a-z]+",
+    output:
+        "analysis/targets/{gene}/{A}_{B}.needleall"
+    log:
+        "analysis/targets/{gene}/{A}_{B}.needleall.log"
+    shell: """{module}; module load  EMBOSS
+    needleall -aseq {input.A} -bseq {input.B} \
+            -aformat3 srspair -gapopen 10.0 -gapextend 0.5 \
+            -outfile {output}"""
+
+rule combined_fasta:
+    input:
+        A="analysis/targets/{gene}/{A}.fasta",
+        B="analysis/targets/{gene}/{B}.fasta",
+    wildcard_constraints:
+        A="[a-z][a-z][a-z]+",
+        B="[a-z][a-z][a-z]+",
+    output:
+        "analysis/targets/{gene}/{A}_{B}.fasta"
+    log:
+        "analysis/targets/{gene}/{A}_{B}.fasta.log"
+    shell:
+        "cat {input.A} {input.B} > {output}"
+
+rule melsimsec_fastas:
+    input:
+        dir=ancient("analysis/targets/{region}/mss/"),
+        mel="analysis/targets/{region}/mel.fasta",
+        sim="analysis/targets/{region}/sim.fasta",
+        sec="analysis/targets/{region}/sec.fasta",
+    output:
+        dynamic("analysis/targets/{region}/mss/region_{rnum}.fasta")
+    shell:"""
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    python PrepareForClustal.py \
+            --outdir {input.dir} \
+            {input.mel} {input.sim} {input.sec}
+            """
+
+rule mel_intergenic_bed:
+    input:
+        gtf="Reference/mel_all.gtf",
+        dir=ancient("analysis/targets/{upstream}_{downstream}_intergenic/"),
+    output:
+        outbed="analysis/targets/{upstream}_{downstream}_intergenic/mel.bed"
+    run:
+        starts = []
+        stops = []
+        active = False
+        with open(output.outbed, 'w') as outf:
+            for line in open(input.gtf):
+                data = line.split('\t')
+                if len(data) < 8:
+                    import sys
+                    sys.stderr.write(line)
+                    continue
+                if data[2] != 'CDS':
+                    continue
+                start = int(data[3])
+                stop = int(data[4])
+                if wildcards.upstream in data[-1]:
+                    active=True
+                    if stops:
+                        stops[0] = max(stop, stops[0])
+                    else:
+                        stops.append(stop)
+                elif wildcards.downstream in data[-1] and active:
+                    starts.append(start)
+                    active = False
+                    i_start = 0
+                    i_stop = 0
+                    region_n = 1
+                    while i_stop < len(stops) and i_start < len(starts):
+                        start = starts[i_start]
+                        stop = stops[i_stop]
+                        if start <= stop:
+                            i_start += 1
+                        else:
+                            print(data[0],
+                                  stop, start,
+                                  '{}_{}_{}'.format(
+                                      wildcards.upstream,
+                                      wildcards.downstream,
+                                      region_n,
+                                      ),
+                                  '.',  '+',
+                                  stop, start,
+                                  sep='\t',
+                                  file=outf,
+                                  )
+                            region_n += 1
+                            i_stop += 1
+                elif active:
+                    starts.append(start)
+                    stops.append(stop)
+                else:
+                    pass
+
+
+rule non_mel_bed:
+    input:
+        fa="analysis/targets/{gene}/mel.fasta",
+        blastdb="Reference/d{species}.fa.nhr"
+    output: "analysis/targets/{gene}/{species}.bed"
+    #wildcard_constraints: species="^(?!mel$).*$"
+    shell: """{module}; module load blast bioawk
+    blastn -db Reference/d{wildcards.species}.fa \
+            -outfmt "6 sseqid sstart send qseqid evalue sstrand length qlen slen qstart qend" \
+            -gapextend 0\
+            -query {input.fa} \
+        | awk '!_[$4]++' \
+        | bioawk -t '$10 > 1 && $6 ~ /minus/ {{$2 += $10 + 1}}; \
+                    $10 > 1 && $6 ~ /plus/ {{$2 -= $10 + 1}}; \
+                    $11 < $8 && $6 ~ /minus/ {{$3 -= ($8 - $11) + 1}}; \
+                    $2 > $3 {{gsub("mel", "{wildcards.species}", $4); print $1,$3+1,$2,$4,$7/($8+1),"-", $3, $2 }}; \
+                    $2 < $3 {{gsub("mel", "{wildcards.species}", $4); print $1,$2,$3+1,$4,$7/($8+1),"+", $2, $3 }}; '\
+        > {output}
+        """
+
+rule mel_bed:
+    input:
+        gtf="Reference/mel_good.gtf",
+        melsize="Reference/dmel.chr.sizes",
+        oreganno="Reference/oreganno.prepend.bed",
+        dnase="Reference/binding/dnase_peaks_prepend.bed",
+    output:
+        "analysis/targets/{gene}/mel.bed"
+    shell: """{module}; module load bioawk bedtools
+        mkdir -p `dirname output`
+		grep '"{wildcards.gene}"' {input.gtf} \
+		| bedtools sort \
+		| bedtools merge  \
+		| bedtools window -w 10000 -b - -a {input.dnase} \
+        | bioawk -t '{{print $1, $2, $3, "mel_{wildcards.gene}_" NR, "0", "+", $2, $3}}' \
+        | uniq --skip-fields 4 \
+		> {output}
+
+		grep '"{wildcards.gene}"' {input.gtf} \
+		| bedtools sort \
+		| bedtools merge  \
+		| bedtools window -w 10000 -b - -a {input.dnase} \
+        | bioawk -t '{{print $1, $2, $3, "mel_oreganno_{wildcards.gene}_" NR, "0", "+", $2, $3}}' \
+        | uniq --skip-fields 4 \
+        >> {output}
+    """
+
+rule nonmel_fasta_from_bed:
+    input:
+        bed='analysis/targets/{gene}/{species}.bed',
+        full_fasta='Reference/d{species}.fa',
+    output:
+        'analysis/targets/{gene}/{species}.fasta'
+    shell: """ {module}; module load bedtools
+    bedtools getfasta -fi {input.full_fasta} -bed {input.bed} \
+            -fo {output} -s -name
+    """
+rule make_blastdb:
+    input: "Reference/{file}.fa"
+    output: "Reference/{file}.fa.nhr"
+    shell: """{module}; module load blast; makeblastdb -dbtype nucl -in {input}"""
+
+ruleorder: mel_intergenic_bed > mel_bed > non_mel_bed
 
 rule deseq2:
     input:
