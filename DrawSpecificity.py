@@ -90,13 +90,15 @@ if __name__ == "__main__":
                            / expr.T.select(nsw(tissue+sex)).max().clip(0.1))
             tissue_ase = ase.T.select(sw(tissue+sex)).mean()
 
-            mpl.figure()
+            mpl.figure(figsize=(4,3))
             if args.pvals is not None:
                 color = pd.Series({ix: (fishers_method(args.pvals.loc[ix].select(sw(tissue+sex)))
                     if ix in args.pvals.index
                     else 0)
                     for ix in tissue_ase.index
-                    }).clip(-30, 30)
+                    })
+                #color = color.clip(-30, 30)
+                color = color.clip(-350, 350)
                 ix = color.abs().sort_values().index
                 color = color.loc[ix]
                 specificity = specificity.loc[ix]
@@ -107,27 +109,38 @@ if __name__ == "__main__":
             else:
                 color = pd.Series([(0, 0, 0, .1) for c in tissue_ase.index])
                 vmin = vmax = 1
-            mpl.scatter(specificity, tissue_ase, c=color, cmap=mpl.cm.coolwarm,
-                    vmin=vmin, vmax=vmax)
+            mpl.scatter(specificity, color, c=(abs(color)>3), #cmap=mpl.cm.coolwarm,
+                    cmap=mpl.cm.Greys,
+                    vmin=-1, vmax=1)
+                    #vmin=vmin, vmax=vmax)
             mpl.xlabel('Specificity')
-            mpl.ylabel('% D. sechellia')
+            #mpl.ylabel('% D. sechellia')
+            mpl.ylabel('$-\log_{10} p $')
             low, hi = mpl.xlim()
             hi = max(hi, 1e3)
             ax = mpl.gca()
-            cbar = mpl.colorbar(orientation='horizontal')
-            clim = cbar.get_clim()
+            #cbar = mpl.colorbar(orientation='horizontal')
+            #clim = cbar.get_clim()
             ax.set_xscale('log', basex=10)
             ax.xaxis.tick_top()
             ax.xaxis.set_label_position('top')
             #ax.xaxis.set_tick_params(which='both', labeltop='on', labelbottom='off', top='on',
                     #bottom='off')
             mpl.xlim(0.095, hi*1.5)
-            mpl.ylim(-10, 120)
-            mpl.yticks(np.arange(0, 101, 20))
+            #mpl.ylim(-10, 120)
+            #mpl.ylim(-35, 35)
+            mpl.ylim(vmin*1.1, vmax*1.1)
+            #mpl.yticks(np.arange(0, 101, 20))
+            #mpl.yticks([-300, -150, 0, 150, 300])
+            mpl.yticks([-30, -20, -10, 0, 10, 20, 30],
+                       [ 30,  20,  10, 0, 10, 20, 30])
             ax.spines['right'].set_visible(False)
             ax.spines['bottom'].set_visible(False)
             ax.spines['left'].set_bounds(0, 100)
+            ax.spines['left'].set_bounds(-30, 30)
+            ax.spines['left'].set_bounds(vmin, vmax)
             ax.spines['top'].set_bounds(0.1, hi)
+            mpl.tight_layout()
             for ftype in args.file_types:
                 mpl.savefig(os.path.join(args.outdir, tissue+sex+ftype))
 
@@ -135,24 +148,49 @@ if __name__ == "__main__":
                     #& (abs(tissue_ase) > .2)
                     & (abs(color) > 3))
             interesting_genes = tissue_ase.loc[is_interesting].sort_values().index
-            for i, gene in zip(np.linspace(0, 110, len(interesting_genes),
+            ig = specificity.loc[is_interesting].sort_values().index
+            interesting_genes = color.loc[ig].sort_values(kind='mergesort').index
+            mpl.scatter(x=specificity.loc[interesting_genes],
+                    y=color.loc[interesting_genes],
+                    c='red'
+                    )
+            for i, gene in zip(np.linspace(vmin, vmax, len(interesting_genes),
                                         endpoint=True),
                                interesting_genes):
                 newgene = orthologdb.get(gene, gene)
                 print(tissue, sex, gene, newgene, specificity.loc[gene],
-                      tissue_ase.loc[gene], sep='\t')
+                      tissue_ase.loc[gene], color.loc[gene],
+                      '{:0.2g}'.format(10**(-abs(args.pvals.loc[gene][tissue+sex]))),
+                      sep='\t')
+                if newgene not in {'CG8534', 'bond', 'eloF', 'Fad2', }:
+                    continue
                 if i > tissue_ase.loc[gene]:
                     arrowprops = arrowprops_above
                 else:
                     arrowprops = arrowprops_below
-                mpl.annotate(newgene,
-                             [specificity.loc[gene], tissue_ase.loc[gene]],
-                             [4e2, i],
-                             arrowprops=arrowprops,
-                             annotation_clip=False)
-            cbar.set_clim(*clim)
+                mpl.text(
+                        specificity.loc[gene]*1.1,
+                        color.loc[gene],
+                        newgene,
+                        fontsize=8,
+                        horizontalalignment='left',
+                        verticalalignment='baseline' if color.loc[gene] > 0 else 'top',
+                        )
+#                mpl.annotate(newgene,
+#                             #[specificity.loc[gene], tissue_ase.loc[gene]],
+#                             [specificity.loc[gene], color.loc[gene]],
+#                             [4e2, i],
+#                             arrowprops=arrowprops,
+#                             annotation_clip=False,
+#                             horizontalalignment='left',
+#                             fontsize=8,
+#                             )
+            #cbar.set_clim(*clim)
             for ftype in args.file_types:
-                mpl.savefig(os.path.join(args.outdir, tissue+sex+'_annot'+ftype))
+                mpl.savefig(
+                        os.path.join(args.outdir, tissue+sex+'_annot'+ftype),
+                        dpi=900,
+                        )
             mpl.close()
             if args.pvals is not None:
                 mpl.figure()
