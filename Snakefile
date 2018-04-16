@@ -722,7 +722,7 @@ rule sample_gene_ase:
         --outfile {output} \
         --assign-all-reads \
         --id-name gene_name \
-        --ase-function pref_index \
+        --ase-function log2offset \
         --min-reads-per-allele 0 \
         {input.variants} \
         {input.gtf} \
@@ -947,7 +947,7 @@ rule melsimsec_fastas:
         sim="analysis/targets/{region}/sim.fasta",
         sec="analysis/targets/{region}/sec.fasta",
     output:
-        dynamic("analysis/targets/{region}/mss/region_{rnum}.fasta")
+        #dynamic("analysis/targets/{region}/mss/region_{rnum}.fasta")
     shell:"""
     export CONDA_PATH_BACKUP=""
     export PS1=""
@@ -956,6 +956,20 @@ rule melsimsec_fastas:
             --outdir {input.dir} \
             {input.mel} {input.sim} {input.sec}
             """
+
+rule clustalo_align:
+    input:
+        "analysis/targets/{region}/mss/region_{rnum}.fasta"
+    output:
+        "analysis/targets/{region}/mss/region_{rnum}.clu"
+    shell: """
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    source activate peter
+    clustalo \
+            --in {input} --out {output} --outfmt=clustal
+
+    """
 
 rule mel_intergenic_bed:
     input:
