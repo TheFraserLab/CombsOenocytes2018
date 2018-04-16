@@ -133,8 +133,10 @@ if __name__ == "__main__":
             mpl.ylim(vmin*1.1, vmax*1.1)
             #mpl.yticks(np.arange(0, 101, 20))
             #mpl.yticks([-300, -150, 0, 150, 300])
-            mpl.yticks([-30, -20, -10, 0, 10, 20, 30],
-                       [ 30,  20,  10, 0, 10, 20, 30])
+            ytickvals = mpl.yticks()[0][1:-1]
+            ytickvals = ytickvals.astype(int)
+            mpl.yticks(ytickvals, np.abs(ytickvals),)
+
             ax.spines['right'].set_visible(False)
             ax.spines['bottom'].set_visible(False)
             ax.spines['left'].set_bounds(0, 100)
