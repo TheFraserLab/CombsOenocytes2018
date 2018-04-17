@@ -14,3 +14,8 @@ tmp
 Log.out
 tophat_out
 slurm*.out
+
+# Output
+*.pdf
+*.tsv
+*.log*
