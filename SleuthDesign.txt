@@ -1,0 +1,9 @@
+sample	replicate	tissue	
+fbfemale_r1	one	fbfemale	
+fbfemale_r2	two	fbfemale	
+fbmale_r1	one	fbmale	
+fbmale_r2	two	fbmale	
+oefemale_r1	one	oefemale	
+oefemale_r2	two	oefemale	
+oemale_r1	one	oemale	
+oemale_r2	two	oemale	
