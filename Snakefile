@@ -172,7 +172,7 @@ rule build_transcriptome:
             --no-bowtie-index
     """
 
-ruleorder: tophat_transcriptome > build_transcriptome > prepare_emase > vcf_to_genome
+ruleorder: fbtr_transcriptome > tophat_transcriptome > build_transcriptome > prepare_emase > vcf_to_genome
 
 rule orig_seq_star_ref:
     input:
@@ -397,7 +397,7 @@ rule makedir:
 
 rule kallisto_index_unsplit:
     input:
-        fasta="Reference/{target}/simsec_corrected_transcripts.fa"
+        fasta="Reference/{target}/simsec_corrected_fbtr.fa"
     output:
         'Reference/{target}/kallisto_unsplit'
     shell:"""~/Downloads/kallisto/kallisto index\
@@ -433,6 +433,17 @@ rule tophat_transcriptome:
             Reference/{wildcards.target}/simsec_corrected
     """
 
+# Tophat gives the transcripts in the least useful format for my purposes:
+# >29823 FBtr0113891 YHet+ 311-424,540-799,857-1196,1254-1519, ...
+# ^       ^
+# ???     |
+#         Useful
+rule fbtr_transcriptome:
+    input:
+        "Reference/{target}/simsec_corrected_transcripts.fa"
+    output:
+        "Reference/{target}/simsec_corrected_fbtr.fa"
+    shell:"perl -pe 's/>[^F]*FBtr/>FBtr/' < {input} > {output}"
 
 rule kallisto_index:
     input:
@@ -460,6 +471,7 @@ rule kallisto_quant_unsplit:
     mkdir -p {wildcards.sample}
     ~/Downloads/kallisto/kallisto quant \
         -i {input.index} \
+        -b 50 -t 5 \
         -o analysis/{wildcards.target}/{wildcards.sample}/unsplit \
         {params.reads}
     """
@@ -479,6 +491,7 @@ rule kallisto_quant:
     mkdir -p {wildcards.sample}
     ~/Downloads/kallisto/kallisto quant \
         -i {input.index} \
+        -b 50 -t 5 \
         -o analysis/{wildcards.target}/{wildcards.sample}/ \
         {params.reads}
     """
