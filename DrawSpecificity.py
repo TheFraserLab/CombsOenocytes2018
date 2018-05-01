@@ -7,7 +7,14 @@ from matplotlib.style import use
 from scipy.stats import chi2
 use('grayscale')
 
+true_index = lambda x: x.index[x]
 
+colors = {
+        'allpass': (1,0,0, 1),
+        'tissue': (0, 0, 1, 1),
+        'ase': (0, 1.0, 0, 1),
+        'other': (0, 0, 0, 0.2)
+        }
 
 startswith = lambda x: lambda y: y.startswith(x)
 notstartswith = lambda x: lambda y: not y.startswith(x)
@@ -29,6 +36,7 @@ def parse_args():
     parser.add_argument('--file-types', '-t', nargs='+', default=['', '.png'])
     parser.add_argument('--try-orthologs', default=False)
     parser.add_argument('--pvals', default=None)
+    parser.add_argument('--specificities')
     parser.add_argument('expr_file')
     parser.add_argument('ase_file')
     parser.add_argument('outdir')
@@ -86,31 +94,40 @@ if __name__ == "__main__":
 
     for sex in ['male', 'female']:
         for tissue in ['oe', 'fb']:
+            spec_file = os.path.join(args.specificities,
+                    tissue+sex+'_spec_genes.txt')
+            specificities = dict(line.strip().split()
+                    for line in open(spec_file))
             specificity = (expr.T.select(sw(tissue+sex)).mean()
                            / expr.T.select(nsw(tissue+sex)).max().clip(0.1))
             tissue_ase = ase.T.select(sw(tissue+sex)).mean()
 
             mpl.figure(figsize=(4,3))
             if args.pvals is not None:
-                color = pd.Series({ix:
+                asep = pd.Series({ix:
                     (args.pvals.loc[ix].select(sw(tissue+sex)).mean()
                     if ix in args.pvals.index
                     else 0)
                     for ix in tissue_ase.index
                     })
-                #color = color.clip(-30, 30)
-                color = color.clip(-350, 350)
-                ix = color.abs().sort_values().index
-                color = color.loc[ix]
+                #asep = asep.clip(-30, 30)
+                asep = asep.clip(-350, 350)
+                ix = asep.abs().sort_values().index
+                asep = asep.loc[ix]
                 specificity = specificity.loc[ix]
                 tissue_ase = 50 * (tissue_ase.loc[ix] + 1)
 
-                vmin = -(color.abs().max())
-                vmax = color.abs().max()
+                vmin = -(asep.abs().max())
+                vmax = asep.abs().max()
             else:
-                color = pd.Series([(0, 0, 0, .1) for c in tissue_ase.index])
+                asep = pd.Series([(0, 0, 0, .1) for c in tissue_ase.index])
                 vmin = vmax = 1
-            mpl.scatter(specificity, color, c=(abs(color)>3), #cmap=mpl.cm.coolwarm,
+            cs = [ colors[specificities.get(gene, 'other')]
+                    for gene in specificity.index]
+            #assert tissue+sex != 'oefemale'
+            mpl.scatter(specificity, asep, c=cs,
+                    s=5,
+                    edgecolors='none',
                     cmap=mpl.cm.Greys,
                     vmin=-1, vmax=1)
                     #vmin=vmin, vmax=vmax)
@@ -149,39 +166,46 @@ if __name__ == "__main__":
 
             is_interesting = ((specificity > 3)
                     #& (abs(tissue_ase) > .2)
-                    & (abs(color) > 3))
+                    & (abs(asep) > 3))
             interesting_genes = tissue_ase.loc[is_interesting].sort_values().index
+            interesting_genes = {gene for gene in specificities
+                    if specificities[gene] == 'allpass'}
             ig = specificity.loc[is_interesting].sort_values().index
-            interesting_genes = color.loc[ig].sort_values(kind='mergesort').index
+            interesting_genes = asep.loc[ig].sort_values(kind='mergesort').index
+            interesting_genes = {gene for gene in specificities
+                    if specificities[gene] == 'allpass'}
+            print(sorted(interesting_genes),len(interesting_genes),  sep='\n')
             mpl.scatter(x=specificity.loc[interesting_genes],
-                    y=color.loc[interesting_genes],
-                    c='red'
+                    y=asep.loc[interesting_genes],
+                    s=5,
+                    c='red',
+                    edgecolors='none',
                     )
             for i, gene in zip(np.linspace(vmin, vmax, len(interesting_genes),
                                         endpoint=True),
                                interesting_genes):
                 newgene = orthologdb.get(gene, gene)
                 print(tissue, sex, gene, newgene, specificity.loc[gene],
-                      tissue_ase.loc[gene], color.loc[gene],
+                      tissue_ase.loc[gene], asep.loc[gene],
                       '{:0.2g}'.format(10**(-abs(args.pvals.loc[gene][tissue+sex]))),
                       sep='\t')
-                if newgene not in {'CG8534', 'bond', 'eloF', 'Fad2', }:
-                    continue
+                #if newgene not in {'CG8534', 'bond', 'eloF', 'Fad2', }:
+                    #continue
                 if i > tissue_ase.loc[gene]:
                     arrowprops = arrowprops_above
                 else:
                     arrowprops = arrowprops_below
                 mpl.text(
                         specificity.loc[gene]*1.1,
-                        color.loc[gene],
+                        asep.loc[gene],
                         newgene,
                         fontsize=8,
                         horizontalalignment='left',
-                        verticalalignment='baseline' if color.loc[gene] > 0 else 'top',
+                        verticalalignment='baseline' if asep.loc[gene] > 0 else 'top',
                         )
 #                mpl.annotate(newgene,
 #                             #[specificity.loc[gene], tissue_ase.loc[gene]],
-#                             [specificity.loc[gene], color.loc[gene]],
+#                             [specificity.loc[gene], asep.loc[gene]],
 #                             [4e2, i],
 #                             arrowprops=arrowprops,
 #                             annotation_clip=False,
@@ -197,7 +221,7 @@ if __name__ == "__main__":
             mpl.close()
             if args.pvals is not None:
                 mpl.figure()
-                mpl.hist(color.clip(-30, 30), bins=np.arange(-30,30.5,0.5),
+                mpl.hist(asep.clip(-30, 30), bins=np.arange(-30,30.5,0.5),
                         range=(-30,30))
                 mpl.savefig(os.path.join(args.outdir,
                     'hist'+tissue+sex+args.file_types[0]))

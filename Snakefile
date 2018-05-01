@@ -1139,5 +1139,41 @@ rule combine_deseq_pvals:
         outdf.to_csv(output[0], sep='\t', na_rep='0')
 
 
+rule sleuth:
+    input:
+        expand('analysis/{{target}}/{tissue}_r{rep}/unsplit/abundance.h5',
+                tissue=['oemale', 'oefemale', 'fbmale', 'fbfemale'],
+                rep=[1,2]),
+        "sleuth.R",
+    output:
+        'analysis/{target}/combined/oe_sleuth.tsv',
+        'analysis/{target}/combined/female_sleuth.tsv',
+        'analysis/{target}/combined/sleuth_oe_obs_norm.tsv',
+        'analysis/{target}/combined/sleuth_female_obs_norm.tsv',
+    shell:"""{preconda}
+    source activate deseq
+    Rscript sleuth.R --input_dir analysis/{wildcards.target}
+    """
+
+
+rule fig_1_venn:
+    input:
+        'Fig1Venn.py',
+        'analysis/{target}/deseq_pvals.tsv',
+        'analysis/{target}/combined/oe_sleuth.tsv',
+        'analysis/{target}/combined/female_sleuth.tsv',
+        'analysis/{target}/combined/sleuth_oe_obs_norm.tsv',
+        'analysis/{target}/combined/sleuth_female_obs_norm.tsv',
+
+    output:
+        'analysis/{target}/combined/oefemale_spec_genes.txt',
+        'analysis/{target}/combined/fbfemale_spec_genes.txt',
+        'analysis/{target}/combined/oemale_spec_genes.txt',
+        'analysis/{target}/combined/fbmale_spec_genes.txt',
+
+    shell: """{preconda}
+    source activate peter
+    python Fig1Venn.py analysis/{wildcards.target}
+    """
 
 
