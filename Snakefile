@@ -13,9 +13,11 @@ num_mel_windows = 17
 dates = {'mel': mel_date, 'sim': sim_date, 'sec': sec_date}
 versions = {'mel': mel_version, 'sim': sim_version, 'sec': sec_version}
 
-module = '''module () {
-        eval `$LMOD_CMD bash "$@"`
-        }'''
+module = '''module () { eval `$LMOD_CMD bash "$@"` }'''
+preconda = '''
+    export CONDA_PATH_BACKUP=""
+    export PS1=""
+    '''
 
 from os import path
 
@@ -204,8 +206,7 @@ rule mask_and_make_bed:
             corr_fasta="Reference/{target}/simsec_corrected.fasta",
             bed="Reference/{target}/simsec_variant.bed",
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python MaskReferenceFromGATKTable.py \
             --target-species sim \
@@ -344,8 +345,7 @@ rule wasp_keep:
     output:
         temp("analysis/{file}.remap.kept.bam"),
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python ~/FWASP/mapping/filter_remapped_reads.py \
             -p \
@@ -774,8 +774,7 @@ rule ase_summary:
     log:
         'analysis/{target}/mst.log'
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python MakeSummaryTable.py \
 	   --filename gene_ase_by_read.tsv \
@@ -796,8 +795,7 @@ rule ase_refalt_summary:
     log:
         'analysis/{target}/mst_refalt.log'
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python MakeSummaryTable.py \
 	   --filename gene_ase_by_read.tsv \
@@ -819,8 +817,7 @@ rule nowasp_ase_summary:
     log:
         'analysis/{target}/mst.log'
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python MakeSummaryTable.py \
 	   --filename gene_ase_nowasp.tsv \
@@ -839,8 +836,7 @@ rule pval_summary:
     log:
         'analysis/{target}/mst.log'
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python MakeSummaryTable.py \
 	   --filename gene_ase_pval.tsv \
@@ -857,8 +853,7 @@ rule tissue_pvals:
     output:
         'analysis/{target}/summary_ase_tissue_pvals.tsv'
     shell:"""
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python CombinedASEbySample.py -o {output} {input}
     """
@@ -872,8 +867,7 @@ rule kallisto_summary:
     log:
         'analysis/{target}/mst.log'
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python MakeSummaryTable.py \
 	   --filename abundance.tsv \
@@ -892,8 +886,7 @@ rule kallisto_summary_renamed:
         tlst = 'Reference/{target}/simsec_corrected_transcripts.fa.tlst',
     output: 'analysis/{target}/summary_kallisto_genes.tsv'
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python CombineExprByGenes.py \
         --cufflinks-tlst {input.tlst} \
@@ -909,18 +902,27 @@ rule draw_specificity:
         expr='analysis/{target}/summary_kallisto_genes.tsv',
         ase='analysis/{target}/summary_ase.tsv',
         pvals='analysis/{target}/deseq_pvals.tsv',
+        specificities="analysis/{target}/combined/oefemale_spec_genes.txt",
     output:
         expand('analysis/{{target}}/figure-specificity/{tissue}{sex}.svg',
         tissue=['oe', 'fb'], sex=['male', 'female'],)
     shell:  """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python DrawSpecificity.py \
             --pvals {input.pvals} \
             --try-orthologs prereqs \
+            --specificities analysis/{wildcards.target}/combined/ \
             {input.expr} {input.ase} {input.outdir}
         """
+
+rule translate_fbtrs:
+    input:
+        in_file="analysis/{species}/{prefix}.{suffix}",
+        gtf="Reference/{species}_good.gtf",
+    output:
+        "analysis/{species,[^/]+}/{prefix}.translated.{suffix}"
+    shell: "python TranslateToMel.py {input.gtf} {input.in_file} {output}"
 
 
 rule alignment:
@@ -962,8 +964,7 @@ rule melsimsec_fastas:
     output:
         #dynamic("analysis/targets/{region}/mss/region_{rnum}.fasta")
     shell:"""
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     python PrepareForClustal.py \
             --outdir {input.dir} \
@@ -976,8 +977,7 @@ rule clustalo_align:
     output:
         "analysis/targets/{region}/mss/region_{rnum}.clu"
     shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    {preconda}
     source activate peter
     clustalo \
             --in {input} --out {output} --outfmt=clustal
@@ -1116,9 +1116,7 @@ rule deseq2:
     output:
         expand('analysis/{{target}}/combined/{file}_deseq.tsv',
                 file=['oefemale', 'oemale', 'fbfemale', 'fbmale'])
-    shell: """
-    export CONDA_PATH_BACKUP=""
-    export PS1=""
+    shell: """ {preconda}
     source activate deseq
     Rscript {input.code} {input.data}
     """
