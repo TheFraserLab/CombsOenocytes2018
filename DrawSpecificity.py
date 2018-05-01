@@ -75,7 +75,7 @@ if __name__ == "__main__":
                     if line.startswith('#'): continue
                     if not line.strip(): continue
                     data = line.split('\t')
-                    symbol = data[1]
+                    symbol = 'desatF' if data[1] == 'Fad2' else data[1]
                     orthologdb[data[0]] = symbol
                     orthologdb[data[6]] = symbol
                     orthologdb[data[5]] = symbol
@@ -130,26 +130,16 @@ if __name__ == "__main__":
                     edgecolors='none',
                     cmap=mpl.cm.Greys,
                     vmin=-1, vmax=1)
-                    #vmin=vmin, vmax=vmax)
             mpl.xlabel('Specificity')
-            #mpl.ylabel('% D. sechellia')
             mpl.ylabel('$-\log_{10} p $')
             low, hi = mpl.xlim()
             hi = max(hi, 1e3)
             ax = mpl.gca()
-            #cbar = mpl.colorbar(orientation='horizontal')
-            #clim = cbar.get_clim()
             ax.set_xscale('log', basex=10)
             ax.xaxis.tick_top()
             ax.xaxis.set_label_position('top')
-            #ax.xaxis.set_tick_params(which='both', labeltop='on', labelbottom='off', top='on',
-                    #bottom='off')
             mpl.xlim(0.095, hi*1.5)
-            #mpl.ylim(-10, 120)
-            #mpl.ylim(-35, 35)
             mpl.ylim(vmin*1.1, vmax*1.1)
-            #mpl.yticks(np.arange(0, 101, 20))
-            #mpl.yticks([-300, -150, 0, 150, 300])
             ytickvals = mpl.yticks()[0][1:-1]
             ytickvals = ytickvals.astype(int)
             mpl.yticks(ytickvals, np.abs(ytickvals),)
